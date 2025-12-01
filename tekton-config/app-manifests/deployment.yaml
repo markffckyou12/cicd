@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-gitops-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-gitops-app
+  template:
+    metadata:
+      labels:
+        app: my-gitops-app
+    spec:
+      containers:
+      - name: app
+        image: docker.io/ffckyou123/my-app:latest # Placeholder
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-gitops-app-svc
+spec:
+  type: LoadBalancer
+  selector:
+    app: my-gitops-app
+  ports:
+    - port: 80

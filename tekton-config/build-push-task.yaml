@@ -1,0 +1,75 @@
+# build-push-task.yaml (CORRECTED WITH CONTEXT PARAMETER)
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-push-task
+  namespace: default
+spec:
+  workspaces:
+    - name: source
+  params:
+    - name: image-destination
+      type: string
+    - name: context-path # <-- NEW PARAMETER for the build context (e.g., '.')
+      type: string
+      default: "." # Default to root if not specified
+  results:
+    - name: image-digest 
+      type: string
+  steps:
+    - name: build-and-push
+      image: quay.io/buildah/stable
+      securityContext:
+        privileged: true
+      env:
+        - name: DOCKER_CONFIG_JSON
+          valueFrom:
+            secretKeyRef:
+              name: docker-auth
+              key: .dockerconfigjson
+      script: |
+        #!/usr/bin/env sh
+        set -e
+        # Build and Push the image
+        # Change directory to the workspace root
+        cd $(workspaces.source.path) 
+        
+        # Parse the dockerconfig JSON and login (Authentication confirmed working)
+        mkdir -p /tmp
+        echo -n "$DOCKER_CONFIG_JSON" > /tmp/dockerconfig.json
+        AUTH_BASE64=$(sed -n 's/.*"auth"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dockerconfig.json | head -n1 || true)
+        if [ -n "$AUTH_BASE64" ]; then
+          CRED=$(echo "$AUTH_BASE64" | base64 -d 2>/dev/null || true)
+          USER=$(echo "$CRED" | cut -d: -f1)
+          PASS=$(echo "$CRED" | cut -d: -f2-)
+          if [ -n "$USER" ] && [ -n "$PASS" ]; then
+            echo "$PASS" | buildah login --username "$USER" --password-stdin docker.io || true
+          fi
+        fi
+        
+        # Use the context-path parameter for the build command
+        CONTEXT="$(params.context-path)"
+        if [ ! -f "$CONTEXT/Dockerfile" ]; then
+          echo "Error: Dockerfile not found at $CONTEXT/Dockerfile within $(workspaces.source.path)"
+          # We need to debug. Print the contents of the workspace root!
+          echo "--- DEBUG: Listing contents of /workspace/source/ ---"
+          ls -R
+          exit 125
+        fi
+
+        # Use a temporary tag, then push
+        buildah bud --tls-verify=false -f "$CONTEXT/Dockerfile" -t $(params.image-destination):temp "$CONTEXT"
+        
+        # Push logic (remaining part of your original script)
+        DIGESTFILE=/tmp/image.digest
+        buildah push --tls-verify=false --digestfile "$DIGESTFILE" $(params.image-destination):temp docker://$(params.image-destination):temp 2>/tmp/push.out || true
+        
+        # Extract digest and write to result file
+        if [ -f "$DIGESTFILE" ] && [ -s "$DIGESTFILE" ]; then
+          DIGEST=$(cat "$DIGESTFILE" | tr -d '\n')
+        else
+          DIGEST=$(sed -n 's/.*digest:\s*\(sha256:[0-9a-fA-F]\{64\}\).*/\1/p' /tmp/push.out | head -n1 || true)
+        fi
+        
+        echo -n "$DIGEST" > $(results.image-digest.path)
+        echo "Image built and pushed successfully with digest: $DIGEST"

@@ -1,0 +1,43 @@
+# git-clone-task.yaml (CORRECTED FINAL VERSION)
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: git-clone-task
+  namespace: default
+spec:
+  workspaces:
+    - name: source # <-- CRITICAL FIX: Changed from 'output' to 'source'
+  params:
+    - name: repo-url
+      type: string
+    - name: branch
+      type: string
+      default: "main"
+  steps:
+    - name: clone
+      image: alpine/git:v2.49.1
+      # Retain the successful authentication method
+      volumeMounts:
+        - name: secret-volume
+          mountPath: /var/secrets/github
+      script: |
+        #!/usr/bin/env sh
+        set -euo pipefail
+        
+        # Manual PAT injection (Confirmed working)
+        PAT=$(cat /var/secrets/github/password)
+        AUTH_URL=$(echo "$(params.repo-url)" | sed "s/https:\/\//https:\/\/tekton-ci-bot:$PAT@/")
+
+        # Clone into the corrected path
+        mkdir -p $(workspaces.source.path)
+        cd $(workspaces.source.path)
+        
+        chmod -R a+rwx . || true
+        find . -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true
+        
+        git clone -b $(params.branch) $AUTH_URL .
+
+  volumes:
+    - name: secret-volume
+      secret:
+        secretName: github-pat-secret

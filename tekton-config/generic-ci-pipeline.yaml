@@ -1,0 +1,61 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: generic-ci-pipeline 
+  namespace: default
+spec:
+  workspaces:
+    - name: shared-data
+  params:
+    - name: app-repo-url
+      type: string
+    - name: image-registry-url
+      type: string
+    - name: manifests-repo-url
+      type: string
+    - name: manifest-target-path
+      type: string
+    - name: image-name-to-patch
+      type: string
+
+  tasks:
+    # 1. Clone the Application Source Code (Repo A)
+    - name: fetch-source
+      taskRef:
+        name: git-clone-task
+      workspaces:
+        - name: source # <-- CRITICAL FIX: Changed from 'output' to 'source'
+          workspace: shared-data
+      params:
+        - name: repo-url
+          value: $(params.app-repo-url)
+
+    # 2. Build the Image and Push to Registry
+    - name: build-image
+      runAfter: [fetch-source]
+      taskRef:
+        name: build-push-task
+      workspaces:
+        - name: source # Now matches fetch-source
+          workspace: shared-data
+      params:
+        - name: image-destination
+          value: $(params.image-registry-url)
+
+    # 3. Update the Manifests Repo (The GitOps Bridge)
+    - name: update-manifests
+      runAfter: [build-image]
+      taskRef:
+        name: git-update-manifests-task
+      workspaces:
+        - name: git-repo
+          workspace: shared-data
+      params:
+        - name: manifests-repo-url
+          value: $(params.manifests-repo-url)
+        - name: new-image-digest
+          value: $(tasks.build-image.results.image-digest)
+        - name: manifest-path
+          value: $(params.manifest-target-path)
+        - name: image-to-patch
+          value: $(params.image-name-to-patch)

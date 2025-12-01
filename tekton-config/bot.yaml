@@ -1,0 +1,38 @@
+# bot.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tekton-ci-bot
+  namespace: default
+secrets:
+  - name: github-pat-secret # For Git push/clone authentication (runtime secrets)
+  - name: docker-auth        # For Docker Hub push authentication (runtime secrets)
+imagePullSecrets:
+  - name: github-pat-secret # Crucial for pulling images from GHCR
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tekton-task-runner
+  namespace: default
+rules:
+  - apiGroups: ["tekton.dev"]
+    resources: ["tasks", "pipelineruns", "taskruns", "pipelines", "clustertasks"]
+    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "persistentvolumeclaims"]
+    verbs: ["create", "delete", "get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tekton-ci-rolebinding
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: tekton-ci-bot
+    namespace: default
+roleRef:
+  kind: Role
+  name: tekton-task-runner
+  apiGroup: rbac.authorization.k8s.io

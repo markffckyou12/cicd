@@ -1,0 +1,72 @@
+# git-update-manifests-task.yaml (CORRECTED)
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: git-update-manifests-task
+  namespace: default
+spec:
+  workspaces:
+    - name: git-repo
+  params:
+    # ... (params unchanged)
+    - name: manifests-repo-url
+      type: string
+    - name: new-image-digest
+      type: string 
+    - name: manifest-path
+      type: string 
+    - name: image-to-patch
+      type: string 
+  steps:
+    - name: patch-and-push
+      image: alpine/git:v2.49.1
+      volumeMounts:
+        - name: secret-volume
+          mountPath: /var/secrets/github
+      script: |
+        #!/usr/bin/env sh
+        set -euo pipefail
+
+        # MANUAL AUTH setup (confirmed working in your test)
+        PAT=$(cat /var/secrets/github/password)
+        AUTH_URL=$(echo "$(params.manifests-repo-url)" | sed "s/https:\/\//https:\/\/tekton-ci-bot:$PAT@/")
+        
+        # Setup workspace, clone
+        mkdir -p $(workspaces.git-repo.path)
+        cd $(workspaces.git-repo.path)
+        chmod -R a+rwx . || true
+        find . -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true
+
+        git clone --depth 1 $AUTH_URL .
+        git config user.email "ci-bot@tekton.dev"
+        git config user.name "Tekton Bot"
+
+        # Install kubectl
+        apk add --no-cache curl
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        mv kubectl /usr/local/bin/
+
+        # Patch logic
+        NEW_IMAGE="$(params.image-to-patch)@$(params.new-image-digest)"
+        FILE=$(params.manifest-path)
+
+        if [ ! -f "$FILE" ]; then
+           echo "Error: Manifest file $FILE not found in repo."
+           exit 1
+        fi
+
+        sed -i "s|image: .*|image: $NEW_IMAGE|g" $FILE
+
+        # Commit and Push
+        if git diff --quiet; then
+           echo "No changes."
+        else
+           git add $FILE
+           git commit -m "Update image to $(params.new-image-digest)"
+           git push $AUTH_URL
+        fi
+  volumes:
+    - name: secret-volume
+      secret:
+        secretName: github-pat-secret
