@@ -17,6 +17,11 @@ spec:
         image: docker.io/ffckyou123/my-app:latest
         ports:
         - containerPort: 80
+    imagePullSecrets:
+      - name: dockerhub-secret # <-- Must match the Secret name created above
+      containers:
+      - name: app
+        image: docker.io/ffckyou123/my-app:latest
 ---
 apiVersion: v1
 kind: Service
