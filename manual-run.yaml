@@ -1,0 +1,22 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: ci-cd-run-
+spec:
+  pipelineRef:
+    name: generic-ci-pipeline
+  workspaces:
+    - name: shared-data
+      persistentVolumeClaim:
+        claimName: tekton-workspace
+  params:
+    - name: app-repo-url
+      value: "https://github.com/markffckyou12/new12.git"
+    - name: image-registry-url
+      value: "docker.io/ffckyou123/my-app"
+    - name: manifests-repo-url
+      value: "https://github.com/markffckyou12/cicd.git"
+    - name: manifest-target-path
+      value: "app-manifests/deployment.yaml"
+    - name: image-name-to-patch
+      value: "docker.io/ffckyou123/my-app:latest"
