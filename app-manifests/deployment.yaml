@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: app
-        image: docker.io/ffckyou123/my-app:latest@sha256:c77dd8a8514204ba857065a5bed8ef0b51287b27aa90601ab6d703a0d6b5f85a
+        image: docker.io/ffckyou123/my-app:latest
         ports:
         - containerPort: 80
 ---
