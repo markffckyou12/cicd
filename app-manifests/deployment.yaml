@@ -12,16 +12,15 @@ spec:
       labels:
         app: my-gitops-app
     spec:
+      # This is the correct placement for imagePullSecrets, at the same level as 'containers'
+      imagePullSecrets:
+        - name: dockerhub-secret
       containers:
       - name: app
-        image: docker.io/ffckyou123/my-app:latest
+        # Use the digest here, but remove the leading colon from @sha256:
+        image: docker.io/ffckyou123/my-app@sha256:c77dd8a8514204ba857065a5bed8ef0b51287b27aa90601ab6d703a0d6b5f85a
         ports:
         - containerPort: 80
-    imagePullSecrets:
-      - name: dockerhub-secret # <-- Must match the Secret name created above
-      containers:
-      - name: app
-        image: docker.io/ffckyou123/my-app:@sha256:c77dd8a8514204ba857065a5bed8ef0b51287b27aa90601ab6d703a0d6b5f85a
 ---
 apiVersion: v1
 kind: Service
