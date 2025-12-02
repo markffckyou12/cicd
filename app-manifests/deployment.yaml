@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: my-gitops-app
+  annotations:
+    kubectl.kubernetes.io/restartedAt: "2025-12-03T11:34:00Z"
 spec:
   replicas: 1
   selector:
