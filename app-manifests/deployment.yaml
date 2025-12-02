@@ -23,7 +23,7 @@ kind: Service
 metadata:
   name: my-gitops-app-svc
 spec:
-  type: LoadBalancer
+  type: NodePort
   selector:
     app: my-gitops-app
   ports:
